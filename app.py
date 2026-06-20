@@ -335,9 +335,11 @@ st.markdown(
         <p class="h-title">Sonic <em>Signatures</em></p>
       </div>
     </div>
-    <p class="h-lede">Name a song from just a few seconds of it. Every track is boiled
-    down to a sparse <b>map of its loudest time–frequency landmarks</b> — and a clip is
-    recognised when its landmarks line up with one song at a single, consistent time offset.</p>
+<p class="h-sub">
+  Identify any track from a fraction of its audio. By extracting a sparse 
+  <b>constellation of time-frequency landmarks</b>, the app uses combinatorial 
+  hashing and precise offset alignment to find a perfect match.
+</p>
     """,
     unsafe_allow_html=True,
 )
@@ -361,7 +363,7 @@ st.markdown(
       <div class="chip"><div class="num">2</div><div class="txt">
         <b>Distil</b><span>Only the strongest peaks are kept, then paired into hashes.</span></div></div>
       <div class="chip"><div class="num">3</div><div class="txt">
-        <b>Match</b><span>The song whose hashes share one offset wins the vote.</span></div></div>
+        <b>Match</b><span>The song whose hashes share one offset gets a score.</span></div></div>
     </div>
     """,
     unsafe_allow_html=True,
