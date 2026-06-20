@@ -550,12 +550,9 @@ def run_single(y, audio_bytes=None, audio_mime=None):
 
     # ---- STEP 1: feature extraction (spectrogram -> constellation) ----
     st.markdown(
-        f"""<div class="step"><div class="ey">Step 1 · Feature extraction</div>
-        <h4>From spectrogram to constellation</h4>
-        <p>The clip becomes a time–frequency map (left); brighter means louder at that
-        frequency and moment. From that rich image only the <b>{len(peaks)} strongest
-        peaks</b> are kept (right). Throwing away everything else makes the fingerprint
-        robust to volume, EQ and noise.</p></div>""",
+        f"""<div class="step"><div class="ey">Step 1 · Feature Extraction</div>
+        <h4>Spectrogram to Constellation Map</h4>
+        <p>The raw audio is first transformed into a spectrogram, mapping frequency intensity over time. To ensure robustness against noise and equalization variations, we discard the bulk of the data. Only the <b>{len(peaks)} strongest local maxima</b>—the constellation peaks—are preserved, distilling the track down to an unbreakable acoustic core.</p></div>""",
         unsafe_allow_html=True,
     )
     fig_spec = plot_spectrogram(f, t, Sdb)
@@ -569,12 +566,9 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     # ---- STEP 2: database search (where in the song) ----
     if is_match and top:
         st.markdown(
-            f"""<div class="step"><div class="ey">Step 2 · Database search</div>
-            <h4>Where in the song?</h4>
-            <p>The clip’s <b>{len(qhashes):,} hashes</b> were looked up against every
-            indexed track. Below is the full stored fingerprint of
-            <b>{top[0]}</b> — each dot is a hash anchor. The highlighted band is exactly
-            where the query clip lines up inside the complete song.</p></div>""",
+            f"""<div class="step"><div class="ey">Step 2 · Database Search</div>
+        <h4>Combinatorial Hash Matching & Temporal Alignment</h4>
+        <p>The <b>{len(qhashes):,} combinatorial hashes</b> generated from the query clip are cross-referenced against the entire indexed database. The visualization below displays the complete stored fingerprint of the predicted match, <b>{top[0] if top else 'the top candidate'}</b>. The highlighted region demonstrates the precise temporal offset where the query's acoustic signature mathematically aligns with the original track.</p></div>""",
             unsafe_allow_html=True,
         )
         fig_map = plot_song_map(db, top[0], best_off, query_len_frames)
@@ -584,12 +578,9 @@ def run_single(y, audio_bytes=None, audio_mime=None):
 
     # ---- STEP 3: the proof (alignment spike) ----
     st.markdown(
-        f"""<div class="step amber"><div class="ey">Step 3 · The proof</div>
-        <h4>The alignment spike</h4>
-        <p>Every matched hash votes for a time offset (database frame − query frame).
-        Chance matches scatter into a flat noise floor; a genuine match makes them
-        converge — <b>{(top[1] if top else 0)} hashes agree on a single offset</b>.
-        That spike cannot be a coincidence.</p></div>""",
+        f"""<div class="step"><div class="ey">Step 3 · The Proof</div>
+        <h4>Temporal Convergence & The Alignment Spike</h4>
+        <p>Each matched hash casts a vote for a relative time offset (database frame minus query frame). While random coincidences scatter uniformly across a flat noise floor, a true acoustic match forces these alignments to converge. Here, <b>{top[1] if top else 0} hashes mathematically agree on a single temporal offset</b>. A spike of this magnitude provides definitive proof of identification.</p></div>""",
         unsafe_allow_html=True,
     )
     fig_hist = plot_offset_hist(offsets, top[0] if top else "", runner[0] if runner else None)
