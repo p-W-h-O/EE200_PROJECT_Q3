@@ -1,0 +1,6 @@
+streamlit>=1.40
+numpy>=1.26
+scipy>=1.11
+soundfile>=0.12.1
+pandas>=2.0
+matplotlib>=3.7
