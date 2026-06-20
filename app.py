@@ -567,7 +567,7 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     if is_match and top:
         st.markdown(
             f"""<div class="step"><div class="ey">Step 2 · Database Search</div>
-        <h4>Combinatorial Hash Matching & Temporal Alignment</h4>
+        <h4>Combinatorial Hash Matching and Temporal Alignment</h4>
         <p>The <b>{len(qhashes):,} combinatorial hashes</b> generated from the query clip are cross-referenced against the entire indexed database. The visualization below displays the complete stored fingerprint of the predicted match, <b>{top[0] if top else 'the top candidate'}</b>. The highlighted region demonstrates the precise temporal offset where the query's acoustic signature mathematically aligns with the original track.</p></div>""",
             unsafe_allow_html=True,
         )
@@ -579,7 +579,7 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     # ---- STEP 3: the proof (alignment spike) ----
     st.markdown(
         f"""<div class="step"><div class="ey">Step 3 · The Proof</div>
-        <h4>Temporal Convergence & The Alignment Spike</h4>
+        <h4>Temporal Convergence and The Alignment Spike</h4>
         <p>Each matched hash casts a vote for a relative time offset (database frame minus query frame). While random coincidences scatter uniformly across a flat noise floor, a true acoustic match forces these alignments to converge. Here, <b>{top[1] if top else 0} hashes mathematically agree on a single temporal offset</b>. A spike of this magnitude provides definitive proof of identification.</p></div>""",
         unsafe_allow_html=True,
     )
