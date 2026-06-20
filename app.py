@@ -110,24 +110,36 @@ p, label, span, div, li {{ color:{INK}; }}
 .dim {{ color:{MUTE}; }}
 
 /* ---------- header ---------- */
-.masthead {{ display:flex; align-items:flex-end; gap:1.1rem; padding:.4rem 0 .2rem; }}
-.dial {{ width:60px; height:60px; border-radius:50%; flex:none;
+.masthead {{ display:flex; align-items:center; gap:1.2rem; padding:.5rem 0 .1rem; }}
+.dial {{ width:64px; height:64px; border-radius:50%; flex:none;
          background:
            conic-gradient(from 220deg, {AMBER} 0deg, {VIOLET} 130deg, {AMBER} 300deg);
-         padding:2px; box-shadow:0 0 26px #f5a62333; }}
+         padding:2px; box-shadow:0 0 30px #f5a62333; }}
 .dial > div {{ width:100%; height:100%; border-radius:50%; background:{BG};
                display:flex; align-items:center; justify-content:center;
-               font-size:1.5rem; color:{AMBER}; }}
-.h-title {{ font-family:'Fraunces',serif; font-weight:600; font-size:2.7rem; line-height:.95;
-            margin:0; color:{INK}; letter-spacing:-.01em; }}
+               font-size:1.6rem; color:{AMBER}; }}
+.h-title {{ font-family:'Fraunces',serif; font-weight:700; font-size:3.1rem; line-height:.92;
+            margin:.1rem 0 0; color:{INK}; letter-spacing:-.015em; }}
 .h-title em {{ font-style:italic; color:{AMBER}; }}
-.h-sub {{ margin:.45rem 0 0; color:{MUTE}; font-size:1.02rem; max-width:60ch; }}
+.h-lede {{ margin:1rem 0 0; color:{INK}; font-size:1.18rem; line-height:1.5;
+           max-width:64ch; font-weight:400; }}
+.h-lede b {{ color:{AMBER}; font-weight:600; }}
 
-.statline {{ display:flex; gap:1.4rem; margin:.8rem 0 0; padding:.55rem 0 0;
-             border-top:1px solid {LINE}; flex-wrap:wrap; }}
-.stat b {{ font-family:'Fraunces',serif; font-weight:600; color:{AMBER}; font-size:1.05rem; }}
-.stat span {{ font-family:'IBM Plex Mono',monospace; font-size:.68rem; letter-spacing:.18em;
-              text-transform:uppercase; color:{MUTE}; display:block; }}
+/* how-it-works step chips */
+.howto {{ display:flex; gap:.7rem; flex-wrap:wrap; margin:1.1rem 0 0; }}
+.chip {{ flex:1; min-width:180px; background:{PANEL}; border:1px solid {LINE};
+         border-radius:13px; padding:.7rem .9rem; display:flex; gap:.7rem; align-items:flex-start; }}
+.chip .num {{ font-family:'Fraunces',serif; font-style:italic; font-weight:600;
+              font-size:1.3rem; color:{AMBER}; line-height:1; flex:none; }}
+.chip .txt b {{ display:block; font-family:'IBM Plex Sans',sans-serif; font-weight:600;
+                font-size:.86rem; color:{INK}; }}
+.chip .txt span {{ font-size:.78rem; color:{MUTE}; line-height:1.35; }}
+
+.statline {{ display:flex; gap:1.6rem; margin:1.1rem 0 0; padding:.6rem 0 0;
+             border-top:1px solid {LINE}; flex-wrap:wrap; align-items:baseline; }}
+.stat b {{ font-family:'Fraunces',serif; font-weight:700; color:{AMBER}; font-size:1.25rem; }}
+.stat span {{ font-family:'IBM Plex Mono',monospace; font-size:.66rem; letter-spacing:.2em;
+              text-transform:uppercase; color:{MUTE}; margin-left:.4rem; }}
 
 /* ---------- generic card ---------- */
 .card {{ background:{PANEL}; border:1px solid {LINE}; border-radius:18px;
@@ -323,8 +335,9 @@ st.markdown(
         <p class="h-title">Sonic <em>Signatures</em></p>
       </div>
     </div>
-    <p class="h-sub">Every track is reduced to a sparse map of time–frequency landmarks.
-    Hold up any clip and the same map is matched against the library by a single consistent time offset.</p>
+    <p class="h-lede">Name a song from just a few seconds of it. Every track is boiled
+    down to a sparse <b>map of its loudest time–frequency landmarks</b> — and a clip is
+    recognised when its landmarks line up with one song at a single, consistent time offset.</p>
     """,
     unsafe_allow_html=True,
 )
@@ -339,6 +352,20 @@ if not (os.path.exists("fingerprint_db.pkl.gz") or os.path.exists("fingerprint_d
     st.stop()
 
 db, LABELS = load_db()
+
+st.markdown(
+    """
+    <div class="howto">
+      <div class="chip"><div class="num">1</div><div class="txt">
+        <b>Listen</b><span>A clip becomes a spectrogram — frequencies over time.</span></div></div>
+      <div class="chip"><div class="num">2</div><div class="txt">
+        <b>Distil</b><span>Only the strongest peaks are kept, then paired into hashes.</span></div></div>
+      <div class="chip"><div class="num">3</div><div class="txt">
+        <b>Match</b><span>The song whose hashes share one offset wins the vote.</span></div></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown(
     f"""
@@ -500,11 +527,16 @@ with tab_single:
                     ab = up.getvalue()
                     y = smart_load(io.BytesIO(ab), filename=up.name)
                     mime = up.type or "audio/wav"
-            if len(y) < SR // 2:
-                st.warning("That clip is very short — results may be unreliable.")
-            run_single(y, audio_bytes=ab, audio_mime=mime)
-        except Exception as e:
-            st.error(f"Could not process that file: {e}")
+            if y is None or len(y) == 0:
+                st.error("That file didn't contain readable audio. "
+                         "Try a WAV, MP3, FLAC, OGG or M4A clip.")
+            else:
+                if len(y) < SR // 2:
+                    st.warning("That clip is very short — results may be unreliable.")
+                run_single(y, audio_bytes=ab, audio_mime=mime)
+        except Exception:
+            st.error("Couldn't read that file — it may be corrupted or an "
+                     "unsupported format. Try a WAV, MP3, FLAC, OGG or M4A clip.")
     elif go and not up:
         st.info("Drop a clip first, or pick a sample below.")
 
