@@ -283,7 +283,7 @@ def _style(ax):
 def plot_spectrogram(f, t, Sdb):
     fig, ax = plt.subplots(figsize=(7, 3.3), dpi=130)
     fig.patch.set_facecolor(CREAM)
-    m = ax.pcolormesh(t, f, Sdb, shading="gouraud", cmap=WARM_CMAP, vmin=-70, vmax=-10)
+    m = ax.pcolormesh(t, f, Sdb, shading="gouraud", cmap=WARM_CMAP, vmin=-80, vmax=-20)
     ax.set_ylim(0, 4000)
     ax.set_xlabel("time (s)"); ax.set_ylabel("frequency (Hz)")
     ax.set_title("Spectrogram", fontsize=12, loc="left", fontweight="bold")
@@ -299,7 +299,7 @@ def plot_constellation(f, t, Sdb, peaks):
     fig.patch.set_facecolor(CREAM)
     # faint warm spectrogram underneath, then crisp dark rings on top
     ax.pcolormesh(t, f, Sdb, shading="gouraud", cmap=WARM_CMAP,
-                  vmin=-70, vmax=-10, alpha=0.30)
+                  vmin=-80, vmax=-20, alpha=0.30)
     if peaks:
         ti = [p[0] for p in peaks]; fi = [p[1] for p in peaks]
         ax.scatter(t[ti], f[fi], s=22, facecolors="none",
