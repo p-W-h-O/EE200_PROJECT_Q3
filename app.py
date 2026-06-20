@@ -211,10 +211,10 @@ audio {{ width:100%; }}
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # warm, readable spectrogram colormap on cream
+# high-contrast pink/violet colormap on cream
 WARM_CMAP = LinearSegmentedColormap.from_list(
-    "warm", ["#f5efe4", "#e9d8a6", "#e8a33d", "#c84b2f", "#5e1f3a", "#241327"]
+    "pink_contrast", ["#f5efe4", "#f4a6d1", "#e83e8c", "#9c27b0", "#4a148c", "#17121f"]
 )
-
 
 # ----------------------------------------------------------------------
 # Data loading (cached)
