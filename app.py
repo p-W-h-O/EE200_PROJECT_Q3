@@ -460,4 +460,165 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     ]
     html = "<div class='flow'>"
     for n, v, s in nodes:
-        html += f
+        html += f"<div class='node'><div class='n'>{n}</div><div class='v'>{v}</div><div class='s'>{s}</div></div>"
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+    st.write("")
+
+    # ---- intermediate visuals (required) ----
+    st.markdown("<div class='section'>Intermediate steps</div>", unsafe_allow_html=True)
+    fig_spec = plot_spectrogram(f, t, Sdb)
+    fig_const = plot_constellation(f2, t2, Sdb2, peaks)
+    fig_hist = plot_offset_hist(offsets, top[0] if top else "", runner[0] if runner else None)
+    c1, c2 = st.columns(2)
+    with c1: st.pyplot(fig_spec, use_container_width=True)
+    with c2: st.pyplot(fig_const, use_container_width=True)
+    st.pyplot(fig_hist, use_container_width=True)
+
+    if ranked:
+        with st.expander("Full ranking (top 10)"):
+            dfr = pd.DataFrame(ranked[:10], columns=["song", "score"])
+            dfr.index = np.arange(1, len(dfr) + 1)
+            st.dataframe(dfr, use_container_width=True)
+
+    for _fig in (fig_spec, fig_const, fig_hist):
+        plt.close(_fig)
+    del Sdb, Sdb2, offsets
+    gc.collect()
+
+
+with tab_single:
+    st.markdown("<div class='section'>Search</div>", unsafe_allow_html=True)
+    st.markdown("### Identify a clip")
+
+    up = st.file_uploader(
+        "Drop a query clip — WAV, MP3, FLAC, OGG or M4A",
+        type=["wav", "mp3", "flac", "ogg", "m4a"],
+        key="single_up",
+    )
+
+    # preview player for the uploaded file
+    if up is not None:
+        st.audio(up)
+
+    samples = list_samples()
+    chosen_sample = None
+    if samples:
+        st.markdown("<div class='section' style='margin-top:.7rem'>Or try a sample</div>",
+                    unsafe_allow_html=True)
+        cols = st.columns(min(len(samples), 4))
+        for i, sp in enumerate(samples):
+            with cols[i % len(cols)]:
+                st.caption(os.path.splitext(os.path.basename(sp))[0])
+                st.audio(sp)
+                if st.button("Identify this", key=f"samp_{i}"):
+                    chosen_sample = sp
+
+    st.write("")
+    go = st.button("Identify", type="primary", key="single_go")
+
+    if chosen_sample or (go and up):
+        try:
+            with st.spinner("Listening…"):
+                if chosen_sample:
+                    y = smart_load(chosen_sample, filename=chosen_sample)
+                    with open(chosen_sample, "rb") as fh:
+                        ab = fh.read()
+                    mime = "audio/" + os.path.splitext(chosen_sample)[1].lstrip(".")
+                else:
+                    ab = up.getvalue()
+                    y = smart_load(io.BytesIO(ab), filename=up.name)
+                    mime = up.type or "audio/wav"
+            if y is None or len(y) == 0:
+                st.error("That file didn't contain readable audio. "
+                         "Try a WAV, MP3, FLAC, OGG or M4A clip.")
+            else:
+                if len(y) < SR // 2:
+                    st.warning("That clip is very short — results may be unreliable.")
+                run_single(y, audio_bytes=ab, audio_mime=mime)
+        except Exception:
+            st.error("Couldn't read that file — it may be corrupted or an "
+                     "unsupported format. Try a WAV, MP3, FLAC, OGG or M4A clip.")
+    elif go and not up:
+        st.info("Drop a clip first, or pick a sample below.")
+
+
+# ======================================================================
+# BATCH MODE
+# ======================================================================
+with tab_batch:
+    st.markdown("<div class='section'>Evaluation</div>", unsafe_allow_html=True)
+    st.markdown("### Batch → results.csv")
+    st.caption(
+        "Upload a set of query clips. The output is a CSV with exactly two columns — "
+        "filename, prediction — where prediction is the matched song's filename without extension."
+    )
+
+    ups = st.file_uploader(
+        "Upload query clips",
+        type=["wav", "mp3", "flac", "ogg", "m4a"],
+        accept_multiple_files=True,
+        key="batch_up",
+    )
+
+    gate = st.checkbox(
+        "Leave prediction blank when no confident match",
+        value=False,
+        help="Off (default): always write the best-guess song for every clip — "
+             "use this for automated evaluation where each clip is a library song. "
+             "On: out-of-library clips get an empty prediction.",
+    )
+
+    if st.button("Run batch", type="primary", key="batch_go"):
+        if not ups:
+            st.info("Upload one or more clips to run a batch.")
+        else:
+            rows = []
+            prog = st.progress(0.0, text="Processing…")
+            for i, fobj in enumerate(ups, 1):
+                fname = fobj.name
+                y = None
+                try:
+                    y = smart_load(fobj, filename=fname)
+                    ranked, _, _ = identify(y, db)
+                    if gate:
+                        ok, lab, _, _ = is_confident(ranked)
+                        pred = lab if ok else ""
+                    else:
+                        pred = ranked[0][0] if ranked else ""
+                except Exception:
+                    pred = ""
+                finally:
+                    del y
+                    gc.collect()
+                rows.append({"filename": fname, "prediction": pred})
+                prog.progress(i / len(ups), text=f"Processed {i}/{len(ups)}")
+            prog.empty()
+
+            df = pd.DataFrame(rows, columns=["filename", "prediction"])
+            st.dataframe(df, use_container_width=True)
+
+            csv_buf = io.StringIO()
+            df.to_csv(csv_buf, index=False)      # exactly: filename,prediction
+            st.download_button(
+                "Download results.csv",
+                data=csv_buf.getvalue(),
+                file_name="results.csv",
+                mime="text/csv",
+                type="primary",
+            )
+            st.success(f"Done — {len(df)} clips. CSV columns: filename, prediction.")
+
+
+# ======================================================================
+# LIBRARY
+# ======================================================================
+with tab_lib:
+    st.markdown("<div class='section'>Index</div>", unsafe_allow_html=True)
+    st.markdown(f"### {len(LABELS)} songs in the library")
+    st.caption("These labels are exactly what the identifier outputs.")
+    q = st.text_input("Filter", placeholder="type to filter songs…", label_visibility="collapsed")
+    shown = [l for l in LABELS if q.lower() in l.lower()] if q else LABELS
+    libdf = pd.DataFrame({"song": shown})
+    libdf.index = np.arange(1, len(libdf) + 1)
+    st.dataframe(libdf, use_container_width=True, height=460)
