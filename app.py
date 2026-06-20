@@ -29,9 +29,39 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
 from fingerprint import (
-    SR, MAX_QUERY_SECONDS, smart_load, get_peaks,
-    hashes_from_peaks, identify, compute_spectrogram, is_confident,
+    SR, get_peaks, hashes_from_peaks, identify, compute_spectrogram,
 )
+try:
+    from fingerprint import smart_load
+except Exception:
+    from fingerprint import load_audio as smart_load  # older fingerprint.py
+try:
+    from fingerprint import MAX_QUERY_SECONDS
+except Exception:
+    MAX_QUERY_SECONDS = 30   # fallback if an older fingerprint.py lacks it
+
+
+# ----------------------------------------------------------------------
+# Confidence gate (kept here in app.py so it has no extra import deps)
+# ----------------------------------------------------------------------
+# A genuine match dominates: a large aligned-hash score AND a large lead over
+# the runner-up. A wrong / out-of-library clip yields only scattered
+# coincidental collisions — a tiny score that barely beats the next song.
+# Measured separation on the 50-song library: true matches score in the
+# thousands with ~1000x+ leads; false queries top out at score 3, ratio 1.5x.
+MIN_SCORE = 15      # minimum absolute aligned-hash count
+MIN_RATIO = 2.5     # minimum lead over the runner-up
+
+
+def is_confident(ranked):
+    """Return (is_match, top_label_or_None, score, ratio) for a ranked list."""
+    if not ranked:
+        return False, None, 0, 0.0
+    top_label, top_score = ranked[0]
+    runner = ranked[1][1] if len(ranked) > 1 else 0
+    ratio = (top_score / runner) if runner else float("inf")
+    ok = top_score >= MIN_SCORE and ratio >= MIN_RATIO
+    return ok, top_label, top_score, ratio
 
 # ----------------------------------------------------------------------
 # Page config
