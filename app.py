@@ -400,7 +400,7 @@ def plot_alignment_spike(offsets, top_label, top_score):
                 ha="right", color="#7c8a87", fontsize=8)
     ax.set_xlabel("time offset  (database frame − query frame)")
     ax.set_ylabel("aligned hashes")
-    ax.set_title("The alignment spike — proof it is not a coincidence",
+    ax.set_title("The alignment spike",
                  fontsize=12, loc="left", fontweight="bold")
     _style(ax); fig.tight_layout()
     return fig
