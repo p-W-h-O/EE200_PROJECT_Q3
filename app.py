@@ -167,18 +167,6 @@ p, label, span, div, li {{ color:{INK}; }}
 .verdict.miss {{ border-color:{ROSE}33; border-left-color:{ROSE}; background:linear-gradient(100deg,#241519,{PANEL} 60%); }}
 .verdict.miss .tag {{ color:{ROSE}; }}
 
-/* ---------- step panel (narrative block before each plot) ---------- */
-.step {{ border-left:3px solid {VIOLET}; padding:.1rem 0 .1rem 1rem; margin:.2rem 0 .9rem; }}
-.step.amber {{ border-left-color:{AMBER}; }}
-.step .ey {{ font-family:'IBM Plex Mono',monospace; font-size:.66rem; letter-spacing:.26em;
-             text-transform:uppercase; color:{VIOLET}; }}
-.step.amber .ey {{ color:{AMBER}; }}
-.step h4 {{ font-family:'Fraunces',serif; font-weight:600; font-size:1.5rem; color:{INK};
-            margin:.2rem 0 .35rem; }}
-.step p {{ color:{MUTE}; font-size:.97rem; line-height:1.5; margin:0; max-width:78ch; }}
-.step p b {{ color:{INK}; font-weight:600; }}
-.step.amber p b {{ color:{AMBER}; }}
-
 /* ---------- buttons ---------- */
 .stButton>button, .stDownloadButton>button {{
     background:{AMBER}; color:#2a1c05; border:0; border-radius:11px;
@@ -335,77 +323,6 @@ def plot_offset_hist(offsets, top_label, runner_label=None):
     return fig
 
 
-def song_anchor_points(db, label, max_points=6000):
-    """Reconstruct a song's stored fingerprint from the database: every hash
-    anchor (time_frame, freq_of_first_peak) tagged with `label`. Returns two
-    arrays (times, freqs). Sampled down to keep the scatter light."""
-    times, freqs = [], []
-    for h, entries in db.items():
-        f1 = h[0] if isinstance(h, (tuple, list)) else None
-        for entry in entries:
-            # entry is (anchor_time, label)
-            if len(entry) >= 2 and entry[-1] == label:
-                times.append(entry[0])
-                freqs.append(f1 if f1 is not None else 0)
-    times = np.asarray(times); freqs = np.asarray(freqs)
-    if times.size > max_points:                       # downsample for speed
-        idx = np.random.default_rng(0).choice(times.size, max_points, replace=False)
-        times, freqs = times[idx], freqs[idx]
-    return times, freqs
-
-
-def plot_song_map(db, label, best_offset, query_len_frames):
-    """STEP 2 — the full stored fingerprint of the matched song, with the
-    window where the query aligns highlighted."""
-    fig, ax = plt.subplots(figsize=(14.4, 3.6), dpi=130)
-    fig.patch.set_facecolor(CREAM)
-    times, freqs = song_anchor_points(db, label)
-    if times.size:
-        ax.scatter(times, freqs, s=4, color="#3a2b4a", alpha=0.45, linewidths=0)
-        # highlight the query window [best_offset, best_offset + query_len]
-        if best_offset is not None:
-            x0 = best_offset; x1 = best_offset + query_len_frames
-            ax.axvspan(x0, x1, color="#c84b2f", alpha=0.16)
-            ax.axvline(x0, color="#c84b2f", lw=1.2)
-            ax.axvline(x1, color="#c84b2f", lw=1.2)
-            ymax = freqs.max() if freqs.size else 1
-            ax.text(x0, ymax * 1.02, " query clip sits here",
-                    color="#c84b2f", fontsize=9, fontweight="bold", va="bottom")
-    ax.set_xlabel("time (frames through the whole song)")
-    ax.set_ylabel("freq bin")
-    ax.set_title(f"Where in “{label}” the clip sits", fontsize=12, loc="left", fontweight="bold")
-    _style(ax); fig.tight_layout()
-    return fig
-
-
-def plot_alignment_spike(offsets, top_label, top_score):
-    """STEP 3 — the alignment spike: all matched-hash votes for the winning
-    song across every offset. A real match converges into one tall bar above a
-    flat noise floor."""
-    fig, ax = plt.subplots(figsize=(14.4, 3.6), dpi=130)
-    fig.patch.set_facecolor(CREAM)
-    votes = offsets.get(top_label, [])
-    if votes:
-        lo, hi = min(votes), max(votes)
-        span = max(hi - lo, 1)
-        bins = np.linspace(lo - span * 0.05, hi + span * 0.05, 200)
-        ax.hist(votes, bins=bins, color="#e8a33d")
-        # annotate the dominant offset
-        peak_off = Counter(votes).most_common(1)[0][0]
-        ax.annotate(f"{top_score} hashes\nagree on one offset",
-                    xy=(peak_off, top_score), xytext=(peak_off + span * 0.18, top_score * 0.7),
-                    color="#9a5b00", fontsize=9, fontweight="bold",
-                    arrowprops=dict(arrowstyle="->", color="#c77a0a", lw=1.3))
-        ax.text(0.99, 0.12, "chance matches (noise floor)", transform=ax.transAxes,
-                ha="right", color="#7c8a87", fontsize=8)
-    ax.set_xlabel("time offset  (database frame − query frame)")
-    ax.set_ylabel("aligned hashes")
-    ax.set_title("The alignment spike — proof it is not a coincidence",
-                 fontsize=12, loc="left", fontweight="bold")
-    _style(ax); fig.tight_layout()
-    return fig
-
-
 # ----------------------------------------------------------------------
 # Header
 # ----------------------------------------------------------------------
@@ -418,9 +335,11 @@ st.markdown(
         <p class="h-title">Sonic <em>Signatures</em></p>
       </div>
     </div>
-    <p class="h-lede">Name a song from just a few seconds of it. Every track is boiled
-    down to a sparse <b>map of its loudest time–frequency landmarks</b> — and a clip is
-    recognised when its landmarks line up with one song at a single, consistent time offset.</p>
+<p class="h-sub">
+  Identify any track from a fraction of its audio. By extracting a sparse 
+  <b>constellation of time-frequency landmarks</b>, the app uses combinatorial 
+  hashing and precise offset alignment to find a perfect match.
+</p>
     """,
     unsafe_allow_html=True,
 )
@@ -444,7 +363,7 @@ st.markdown(
       <div class="chip"><div class="num">2</div><div class="txt">
         <b>Distil</b><span>Only the strongest peaks are kept, then paired into hashes.</span></div></div>
       <div class="chip"><div class="num">3</div><div class="txt">
-        <b>Match</b><span>The song whose hashes share one offset wins the vote.</span></div></div>
+        <b>Match</b><span>The song whose hashes share one offset gets a score.</span></div></div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -541,208 +460,4 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     ]
     html = "<div class='flow'>"
     for n, v, s in nodes:
-        html += f"<div class='node'><div class='n'>{n}</div><div class='v'>{v}</div><div class='s'>{s}</div></div>"
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
-    st.write("")
-
-    # ---- STEP 1: feature extraction (spectrogram -> constellation) ----
-    st.markdown(
-        f"""<div class="step"><div class="ey">Step 1 · Feature extraction</div>
-        <h4>From spectrogram to constellation</h4>
-        <p>The clip becomes a time–frequency map (left); brighter means louder at that
-        frequency and moment. From that rich image only the <b>{len(peaks)} strongest
-        peaks</b> are kept (right). Throwing away everything else makes the fingerprint
-        robust to volume, EQ and noise.</p></div>""",
-        unsafe_allow_html=True,
-    )
-    fig_spec = plot_spectrogram(f, t, Sdb)
-    fig_const = plot_constellation(f2, t2, Sdb2, peaks)
-    c1, c2 = st.columns(2)
-    with c1: st.pyplot(fig_spec, use_container_width=True)
-    with c2: st.pyplot(fig_const, use_container_width=True)
-
-    query_len_frames = len(t2)   # number of time frames in the query
-
-    # ---- STEP 2: database search (where in the song) ----
-    if is_match and top:
-        st.markdown(
-            f"""<div class="step"><div class="ey">Step 2 · Database search</div>
-            <h4>Where in the song?</h4>
-            <p>The clip’s <b>{len(qhashes):,} hashes</b> were looked up against every
-            indexed track. Below is the full stored fingerprint of
-            <b>{top[0]}</b> — each dot is a hash anchor. The highlighted band is exactly
-            where the query clip lines up inside the complete song.</p></div>""",
-            unsafe_allow_html=True,
-        )
-        fig_map = plot_song_map(db, top[0], best_off, query_len_frames)
-        st.pyplot(fig_map, use_container_width=True)
-    else:
-        fig_map = None
-
-    # ---- STEP 3: the proof (alignment spike) ----
-    st.markdown(
-        f"""<div class="step amber"><div class="ey">Step 3 · The proof</div>
-        <h4>The alignment spike</h4>
-        <p>Every matched hash votes for a time offset (database frame − query frame).
-        Chance matches scatter into a flat noise floor; a genuine match makes them
-        converge — <b>{(top[1] if top else 0)} hashes agree on a single offset</b>.
-        That spike cannot be a coincidence.</p></div>""",
-        unsafe_allow_html=True,
-    )
-    fig_hist = plot_offset_hist(offsets, top[0] if top else "", runner[0] if runner else None)
-    fig_spike = plot_alignment_spike(offsets, top[0] if top else "", top[1] if top else 0)
-    st.pyplot(fig_spike, use_container_width=True)
-    with st.expander("Compare against the runner-up song"):
-        st.pyplot(fig_hist, use_container_width=True)
-
-    if ranked:
-        with st.expander("Full ranking (top 10)"):
-            dfr = pd.DataFrame(ranked[:10], columns=["song", "score"])
-            dfr.index = np.arange(1, len(dfr) + 1)
-            st.dataframe(dfr, use_container_width=True)
-
-    figs = [fig_spec, fig_const, fig_hist, fig_spike]
-    if fig_map is not None:
-        figs.append(fig_map)
-    for _fig in figs:
-        plt.close(_fig)
-    del Sdb, Sdb2, offsets
-    gc.collect()
-
-
-with tab_single:
-    st.markdown("<div class='section'>Search</div>", unsafe_allow_html=True)
-    st.markdown("### Identify a clip")
-
-    up = st.file_uploader(
-        "Drop a query clip — WAV, MP3, FLAC, OGG or M4A",
-        type=["wav", "mp3", "flac", "ogg", "m4a"],
-        key="single_up",
-    )
-
-    # preview player for the uploaded file
-    if up is not None:
-        st.audio(up)
-
-    samples = list_samples()
-    chosen_sample = None
-    if samples:
-        st.markdown("<div class='section' style='margin-top:.7rem'>Or try a sample</div>",
-                    unsafe_allow_html=True)
-        cols = st.columns(min(len(samples), 4))
-        for i, sp in enumerate(samples):
-            with cols[i % len(cols)]:
-                st.caption(os.path.splitext(os.path.basename(sp))[0])
-                st.audio(sp)
-                if st.button("Identify this", key=f"samp_{i}"):
-                    chosen_sample = sp
-
-    st.write("")
-    go = st.button("Identify", type="primary", key="single_go")
-
-    if chosen_sample or (go and up):
-        try:
-            with st.spinner("Listening…"):
-                if chosen_sample:
-                    y = smart_load(chosen_sample, filename=chosen_sample)
-                    with open(chosen_sample, "rb") as fh:
-                        ab = fh.read()
-                    mime = "audio/" + os.path.splitext(chosen_sample)[1].lstrip(".")
-                else:
-                    ab = up.getvalue()
-                    y = smart_load(io.BytesIO(ab), filename=up.name)
-                    mime = up.type or "audio/wav"
-            if y is None or len(y) == 0:
-                st.error("That file didn't contain readable audio. "
-                         "Try a WAV, MP3, FLAC, OGG or M4A clip.")
-            else:
-                if len(y) < SR // 2:
-                    st.warning("That clip is very short — results may be unreliable.")
-                run_single(y, audio_bytes=ab, audio_mime=mime)
-        except Exception:
-            st.error("Couldn't read that file — it may be corrupted or an "
-                     "unsupported format. Try a WAV, MP3, FLAC, OGG or M4A clip.")
-    elif go and not up:
-        st.info("Drop a clip first, or pick a sample below.")
-
-
-# ======================================================================
-# BATCH MODE
-# ======================================================================
-with tab_batch:
-    st.markdown("<div class='section'>Evaluation</div>", unsafe_allow_html=True)
-    st.markdown("### Batch → results.csv")
-    st.caption(
-        "Upload a set of query clips. The output is a CSV with exactly two columns — "
-        "filename, prediction — where prediction is the matched song's filename without extension."
-    )
-
-    ups = st.file_uploader(
-        "Upload query clips",
-        type=["wav", "mp3", "flac", "ogg", "m4a"],
-        accept_multiple_files=True,
-        key="batch_up",
-    )
-
-    gate = st.checkbox(
-        "Leave prediction blank when no confident match",
-        value=False,
-        help="Off (default): always write the best-guess song for every clip — "
-             "use this for automated evaluation where each clip is a library song. "
-             "On: out-of-library clips get an empty prediction.",
-    )
-
-    if st.button("Run batch", type="primary", key="batch_go"):
-        if not ups:
-            st.info("Upload one or more clips to run a batch.")
-        else:
-            rows = []
-            prog = st.progress(0.0, text="Processing…")
-            for i, fobj in enumerate(ups, 1):
-                fname = fobj.name
-                y = None
-                try:
-                    y = smart_load(fobj, filename=fname)
-                    ranked, _, _ = identify(y, db)
-                    if gate:
-                        ok, lab, _, _ = is_confident(ranked)
-                        pred = lab if ok else ""
-                    else:
-                        pred = ranked[0][0] if ranked else ""
-                except Exception:
-                    pred = ""
-                finally:
-                    del y
-                    gc.collect()
-                rows.append({"filename": fname, "prediction": pred})
-                prog.progress(i / len(ups), text=f"Processed {i}/{len(ups)}")
-            prog.empty()
-
-            df = pd.DataFrame(rows, columns=["filename", "prediction"])
-            st.dataframe(df, use_container_width=True)
-
-            csv_buf = io.StringIO()
-            df.to_csv(csv_buf, index=False)      # exactly: filename,prediction
-            st.download_button(
-                "Download results.csv",
-                data=csv_buf.getvalue(),
-                file_name="results.csv",
-                mime="text/csv",
-                type="primary",
-            )
-            st.success(f"Done — {len(df)} clips. CSV columns: filename, prediction.")
-
-
-# ======================================================================
-# LIBRARY
-# ======================================================================
-with tab_lib:
-    st.markdown("<div class='section'>Index</div>", unsafe_allow_html=True)
-    st.markdown(f"### {len(LABELS)} songs in the library")
-    st.caption("These labels are exactly what the identifier outputs.")
-    q = st.text_input("Filter", placeholder="type to filter songs…", label_visibility="collapsed")
-    shown = [l for l in LABELS if q.lower() in l.lower()] if q else LABELS
-    libdf = pd.DataFrame({"song": shown})
-    libdf.index = np.arange(1, len(libdf) + 1)
-    st.dataframe(libdf, use_container_width=True, height=460)
+        html += f
