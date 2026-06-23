@@ -1,14 +1,4 @@
-"""
-fingerprint.py — Audio fingerprinting core (Shazam-style).
 
-NO librosa / numba / llvmlite.  Decodes with soundfile (libsndfile),
-resamples with scipy.signal.resample_poly.  This is what makes the app
-build on Streamlit Cloud's Python 3.14 (no source compilation).
-
-Verified: a database built with librosa matches queries decoded here
-hash-for-hash, because both ultimately read the same PCM via libsndfile
-and the 11025 Hz resample target divides cleanly.
-"""
 from collections import defaultdict, Counter
 import io
 import os
@@ -21,7 +11,7 @@ import soundfile as sf
 from scipy import signal as sps
 from scipy.ndimage import maximum_filter
 
-# ---- configuration (MUST match the indexing notebook exactly) ----
+
 SR        = 11025     # resample rate (Hz)
 NPERSEG   = 1024      # STFT window length (samples)
 HOP       = 512       # hop between windows
@@ -31,19 +21,13 @@ FAN_VALUE = 15        # pair each anchor with up to this many later peaks
 MIN_DT    = 1         # min time-bin gap in a pair
 MAX_DT    = 100       # max time-bin gap (target-zone width)
 
-# ---- analysis window ----
-# A fingerprint query needs only a short slice of audio for a confident match.
-# We analyse the first 30 seconds of any clip, which keeps memory and compute
-# low while giving plenty of evidence. Set to None to read the whole file
-# (used when INDEXING the library, where we want every second of a song).
+
 MAX_QUERY_SECONDS = 30
 
 _HAS_FFMPEG = shutil.which("ffmpeg") is not None
 
 
-# ----------------------------------------------------------------------
-# Audio loading  (soundfile + scipy — no librosa)
-# ----------------------------------------------------------------------
+# Audio loading 
 def _resample(y, file_sr, sr):
     if file_sr == sr:
         return y.astype(np.float32)
@@ -53,11 +37,7 @@ def _resample(y, file_sr, sr):
 
 
 def _decode_ffmpeg(path, sr=SR, max_seconds=None):
-    """
-    Decode with ffmpeg straight to mono float32 PCM at `sr`, reading only
-    the first `max_seconds` (so RAM stays tiny). Returns a 1-D float32 array.
-    Raises if ffmpeg isn't available or fails.
-    """
+
     if not _HAS_FFMPEG:
         raise RuntimeError("ffmpeg not available")
     cmd = ["ffmpeg", "-nostdin", "-v", "error"]
@@ -80,29 +60,19 @@ def _decode_ffmpeg(path, sr=SR, max_seconds=None):
 
 
 def _decode_soundfile(path_or_file, sr=SR, max_seconds=None):
-    """
-    Decode with libsndfile, reading only the first `max_seconds` worth of
-    frames so we never allocate the whole file. Returns mono float32 at `sr`.
-    """
+
     with sf.SoundFile(path_or_file) as snd:
         file_sr = snd.samplerate
         frames = -1 if max_seconds is None else int(max_seconds * file_sr)
         y = snd.read(frames=frames, dtype="float32", always_2d=False)
-    if y.ndim > 1:                           # stereo -> mono
+    if y.ndim > 1:                           
         y = y.mean(axis=1)
     y = np.asarray(y, dtype=np.float64)
     return _resample(y, file_sr, sr)
 
 
 def load_audio(path_or_file, sr=SR, max_seconds=None):
-    """
-    Decode an audio file to mono float32 at `sr` Hz, optionally capped to
-    the first `max_seconds`. Accepts a path or a file-like object.
 
-    Strategy: libsndfile first (fast, frame-capped). If that can't read the
-    format (e.g. some M4A/AAC), fall back to ffmpeg with a hard time cap.
-    """
-    # file-like: rewind, then let soundfile try to stream it
     if hasattr(path_or_file, "seek"):
         try: path_or_file.seek(0)
         except Exception: pass
@@ -110,7 +80,7 @@ def load_audio(path_or_file, sr=SR, max_seconds=None):
     try:
         return _decode_soundfile(path_or_file, sr=sr, max_seconds=max_seconds)
     except Exception:
-        # ffmpeg needs a real path — spill a file-like upload to a temp file
+  
         tmp = None
         try:
             if hasattr(path_or_file, "read"):
@@ -129,21 +99,17 @@ def load_audio(path_or_file, sr=SR, max_seconds=None):
 
 
 def smart_load(path_or_file, filename="", sr=SR, max_seconds=MAX_QUERY_SECONDS):
-    """
-    Load a QUERY clip for identification, analysing its leading window
-    (`MAX_QUERY_SECONDS`). Pass max_seconds=None to read the whole file.
-    """
+
     return load_audio(path_or_file, sr=sr, max_seconds=max_seconds)
 
 
 def load_full(path_or_file, sr=SR):
-    """Load an ENTIRE file (no time cap) — used when indexing the library."""
+
     return load_audio(path_or_file, sr=sr, max_seconds=None)
 
 
-# ----------------------------------------------------------------------
-# Spectrogram + constellation of peaks
-# ----------------------------------------------------------------------
+# Spectrogram and constellation of peaks
+
 def compute_spectrogram(y):
     """Return (freqs, times, Sdb) — the dB spectrogram."""
     f, t, S = sps.spectrogram(
@@ -164,9 +130,9 @@ def get_peaks(y):
     return f, t, Sdb, list(zip(ti.tolist(), fi.tolist()))
 
 
-# ----------------------------------------------------------------------
+
 # Hashing (peak pairing)
-# ----------------------------------------------------------------------
+
 def hashes_from_peaks(peaks):
     """Pair each peak with nearby later peaks. hash=(f1,f2,dt); yields (hash, t1)."""
     peaks = sorted(peaks)
@@ -182,9 +148,9 @@ def hashes_from_peaks(peaks):
     return out
 
 
-# ----------------------------------------------------------------------
+
 # Matching via the offset histogram
-# ----------------------------------------------------------------------
+
 def identify(query_y, db):
     """
     Match a query against the paired-hash database.
@@ -215,15 +181,7 @@ def fingerprint_query(query_y):
     return {"freqs": f, "times": t, "Sdb": Sdb, "peaks": peaks}
 
 
-# ----------------------------------------------------------------------
-# Confidence gate
-# ----------------------------------------------------------------------
-# A genuine match dominates: a large aligned-hash score AND a large lead over
-# the runner-up. A wrong / out-of-library clip yields only scattered
-# coincidental collisions — a tiny score that barely beats the next song.
-# Measured separation on the 50-song library: true matches score in the
-# thousands with ~1000x+ leads; false queries top out at score 3, ratio 1.5x.
-# These thresholds sit comfortably in the gap with margin for weak/noisy clips.
+
 MIN_SCORE = 15      # minimum absolute aligned-hash count
 MIN_RATIO = 2.5     # minimum lead over the runner-up
 
