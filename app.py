@@ -444,7 +444,7 @@ st.markdown(
       <div class="chip"><div class="num">1</div><div class="txt">
         <b>Listen</b><span>A clip becomes a spectrogram — frequencies over time.</span></div></div>
       <div class="chip"><div class="num">2</div><div class="txt">
-        <b>Distil</b><span>Only the strongest peaks are kept, then paired into hashes.</span></div></div>
+        <b>Filter</b><span>Only the strongest peaks are kept, then paired into hashes.</span></div></div>
       <div class="chip"><div class="num">3</div><div class="txt">
         <b>Match</b><span>The song whose hashes share one offset wins the vote.</span></div></div>
     </div>
