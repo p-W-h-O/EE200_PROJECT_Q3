@@ -1,19 +1,4 @@
-"""
-build_db.py — Index the song library into fingerprint_db.pkl
 
-Run this ONCE locally (or in Colab) after downloading the provided songs:
-
-    python build_db.py /path/to/songs
-
-It writes fingerprint_db.pkl in the current folder. Commit that .pkl
-alongside the app so the deployed Streamlit app works immediately
-without re-indexing (Streamlit Cloud has no song files and limited CPU).
-
-Uses the SAME soundfile-based decoder as the app, so the database and
-the queries are guaranteed consistent. (It also matches a librosa-built
-database hash-for-hash — verified — so an existing .pkl from the Q3A
-notebook is fine to reuse too.)
-"""
 import os, sys, glob, pickle, time
 from collections import defaultdict
 from fingerprint import load_full, get_peaks, hashes_from_peaks
