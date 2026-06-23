@@ -8,9 +8,6 @@ Two modes:
   • Batch: accepts many clips and writes results.csv with columns
     exactly  filename,prediction  (prediction = matched song's
     filename without extension).
-
-No librosa — decodes via soundfile + scipy so it builds on
-Streamlit Cloud without compiling numba/llvmlite.
 """
 import io
 import os
@@ -34,16 +31,14 @@ from fingerprint import (
 try:
     from fingerprint import smart_load
 except Exception:
-    from fingerprint import load_audio as smart_load  # older fingerprint.py
+    from fingerprint import load_audio as smart_load  
 try:
     from fingerprint import MAX_QUERY_SECONDS
 except Exception:
-    MAX_QUERY_SECONDS = 30   # fallback if an older fingerprint.py lacks it
+    MAX_QUERY_SECONDS = 30   
 
 
-# ----------------------------------------------------------------------
-# Confidence gate (kept here in app.py so it has no extra import deps)
-# ----------------------------------------------------------------------
+
 # A genuine match dominates: a large aligned-hash score AND a large lead over
 # the runner-up. A wrong / out-of-library clip yields only scattered
 # coincidental collisions — a tiny score that barely beats the next song.
@@ -63,9 +58,7 @@ def is_confident(ranked):
     ok = top_score >= MIN_SCORE and ratio >= MIN_RATIO
     return ok, top_label, top_score, ratio
 
-# ----------------------------------------------------------------------
-# Page config
-# ----------------------------------------------------------------------
+
 st.set_page_config(
     page_title="Sonic Signatures · EE200",
     page_icon="◑",
@@ -75,19 +68,19 @@ st.set_page_config(
 DB_PATH = "fingerprint_db.pkl.gz"
 SAMPLES_DIR = "samples"
 
-# ---- palette: warm amber signature on deep plum, cream plots ----
-BG        = "#17121f"   # deep plum-charcoal
-PANEL     = "#1f1830"   # raised card
-PANEL2    = "#271e3b"   # hover / inner
-AMBER     = "#f5a623"   # signature accent
+# Layout 
+BG        = "#17121f"   
+PANEL     = "#1f1830"   
+PANEL2    = "#271e3b"   
+AMBER     = "#f5a623"   
 AMBER_DK  = "#d98a12"
-VIOLET    = "#a78bfa"   # secondary accent
-INK       = "#f3eee6"   # warm off-white text
-MUTE      = "#9a8fb0"   # muted lavender-grey
-LINE      = "#352a4a"   # hairlines
-CREAM     = "#f5efe4"   # plot background (LIGHT — readable)
-PLOTINK   = "#2a2233"   # plot foreground ink
-ROSE      = "#e0607e"   # "wrong song" colour
+VIOLET    = "#a78bfa"   
+INK       = "#f3eee6"   
+MUTE      = "#9a8fb0"   
+LINE      = "#352a4a"   
+CREAM     = "#f5efe4"   
+PLOTINK   = "#2a2233"   
+ROSE      = "#e0607e"   
 
 CUSTOM_CSS = f"""
 <style>
@@ -210,15 +203,12 @@ audio {{ width:100%; }}
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-# warm, readable spectrogram colormap on cream
-# high-contrast pink/violet colormap on cream
+
 WARM_CMAP = LinearSegmentedColormap.from_list(
     "pink_contrast", ["#f5efe4", "#f4a6d1", "#e83e8c", "#9c27b0", "#4a148c", "#17121f"]
 )
 
-# ----------------------------------------------------------------------
-# Data loading (cached)
-# ----------------------------------------------------------------------
+
 @st.cache_resource(show_spinner=False)
 def load_db(path=DB_PATH):
     candidates = [path, "fingerprint_db.pkl.gz", "fingerprint_db.pkl"]
@@ -267,9 +257,7 @@ def list_samples():
                   for f in os.listdir(SAMPLES_DIR) if f.lower().endswith(exts))
 
 
-# ----------------------------------------------------------------------
-# Plots — LIGHT background so they are clearly visible
-# ----------------------------------------------------------------------
+
 def _style(ax):
     ax.set_facecolor(CREAM)
     for s in ax.spines.values():
@@ -297,7 +285,7 @@ def plot_spectrogram(f, t, Sdb):
 def plot_constellation(f, t, Sdb, peaks):
     fig, ax = plt.subplots(figsize=(7, 3.3), dpi=130)
     fig.patch.set_facecolor(CREAM)
-    # faint warm spectrogram underneath, then crisp dark rings on top
+    
     ax.pcolormesh(t, f, Sdb, shading="gouraud", cmap=WARM_CMAP,
                   vmin=-80, vmax=-20, alpha=0.30)
     if peaks:
@@ -390,7 +378,6 @@ def plot_alignment_spike(offsets, top_label, top_score):
         span = max(hi - lo, 1)
         bins = np.linspace(lo - span * 0.05, hi + span * 0.05, 200)
         ax.hist(votes, bins=bins, color="#e8a33d")
-        # annotate the dominant offset
         peak_off = Counter(votes).most_common(1)[0][0]
         ax.annotate(f"{top_score} hashes\nagree on one offset",
                     xy=(peak_off, top_score), xytext=(peak_off + span * 0.18, top_score * 0.7),
@@ -406,9 +393,7 @@ def plot_alignment_spike(offsets, top_label, top_score):
     return fig
 
 
-# ----------------------------------------------------------------------
-# Header
-# ----------------------------------------------------------------------
+
 st.markdown(
     """
     <div class="masthead">
@@ -467,9 +452,9 @@ st.write("")
 tab_single, tab_batch, tab_lib = st.tabs(["Identify", "Batch", "Library"])
 
 
-# ======================================================================
+
 # SINGLE-CLIP MODE
-# ======================================================================
+
 def run_single(y, audio_bytes=None, audio_mime=None):
     timings = {}
 
@@ -494,13 +479,9 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     runner = ranked[1] if len(ranked) > 1 else None
     decisive = (top[1] / runner[1]) if (top and runner and runner[1]) else float("inf")
 
-    # A real match dominates: a large absolute score AND a large lead over the
-    # runner-up. A wrong song produces only scattered coincidental collisions —
-    # a low score that barely beats the next song. We require both to clear the
-    # bar, so an unrelated clip is reported as "not matched" rather than guessed.
     is_match, _, _, _ = is_confident(ranked)
 
-    # ---- verdict first (the answer people want) ----
+
     if is_match:
         ratio_txt = "∞" if decisive == float("inf") else f"{decisive:.0f}×"
         st.markdown(
@@ -511,7 +492,7 @@ def run_single(y, audio_bytes=None, audio_mime=None):
             unsafe_allow_html=True,
         )
     else:
-        # explain WHY it didn't match, using the numbers
+  
         if top is None:
             why = "no landmarks from this clip appear in the library"
         else:
@@ -525,14 +506,13 @@ def run_single(y, audio_bytes=None, audio_mime=None):
             unsafe_allow_html=True,
         )
 
-    # ---- inline player for the analysed clip ----
     if audio_bytes is not None:
         st.markdown("<div class='section'>The clip</div>", unsafe_allow_html=True)
         st.audio(audio_bytes, format=audio_mime or "audio/wav")
 
     st.write("")
 
-    # ---- pipeline strip ----
+
     st.markdown("<div class='section'>Pipeline</div>", unsafe_allow_html=True)
     nodes = [
         ("Spectrogram", f"{timings['spectrogram']:.0f}ms", f"{Sdb.shape[0]}×{Sdb.shape[1]} bins"),
@@ -548,7 +528,7 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     st.markdown(html, unsafe_allow_html=True)
     st.write("")
 
-    # ---- STEP 1: feature extraction (spectrogram -> constellation) ----
+    # STEP 1: feature extraction 
     st.markdown(
         f"""<div class="step"><div class="ey">Step 1 · Feature Extraction</div>
         <h4>Spectrogram to Constellation Map</h4>
@@ -563,7 +543,7 @@ def run_single(y, audio_bytes=None, audio_mime=None):
 
     query_len_frames = len(t2)   # number of time frames in the query
 
-    # ---- STEP 2: database search (where in the song) ----
+    # STEP 2: database search
     if is_match and top:
         st.markdown(
             f"""<div class="step"><div class="ey">Step 2 · Database Search</div>
@@ -576,7 +556,7 @@ def run_single(y, audio_bytes=None, audio_mime=None):
     else:
         fig_map = None
 
-    # ---- STEP 3: the proof (alignment spike) ----
+    # STEP 3: Alignment spike
     st.markdown(
         f"""<div class="step"><div class="ey">Step 3 · The Proof</div>
         <h4>Temporal Convergence and The Alignment Spike</h4>
@@ -614,7 +594,7 @@ with tab_single:
         key="single_up",
     )
 
-    # preview player for the uploaded file
+   
     if up is not None:
         st.audio(up)
 
@@ -660,9 +640,9 @@ with tab_single:
         st.info("Drop a clip first, or pick a sample below.")
 
 
-# ======================================================================
+
 # BATCH MODE
-# ======================================================================
+
 with tab_batch:
     st.markdown("<div class='section'>Evaluation</div>", unsafe_allow_html=True)
     st.markdown("### Batch → results.csv")
@@ -716,7 +696,7 @@ with tab_batch:
             st.dataframe(df, use_container_width=True)
 
             csv_buf = io.StringIO()
-            df.to_csv(csv_buf, index=False)      # exactly: filename,prediction
+            df.to_csv(csv_buf, index=False)      
             st.download_button(
                 "Download results.csv",
                 data=csv_buf.getvalue(),
@@ -727,9 +707,9 @@ with tab_batch:
             st.success(f"Done — {len(df)} clips. CSV columns: filename, prediction.")
 
 
-# ======================================================================
+
 # LIBRARY
-# ======================================================================
+
 with tab_lib:
     st.markdown("<div class='section'>Index</div>", unsafe_allow_html=True)
     st.markdown(f"### {len(LABELS)} songs in the library")
